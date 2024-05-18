@@ -7,6 +7,11 @@ import domainReservationError from "./src/message-handlers/domain-reservation-er
 import tooManyDomains from "./src/message-handlers/too-many-domains.js";
 import clientMessage from "./src/message-handlers/client-message.js";
 import HostipWebSocket from "./src/websocket/host-ip-websocket.js"
+import WebSocket from "ws";
+import WebsocketCloseMessage from "./src/messages/websocket-close-message.js";
+import WebsocketOpenMessage from "./src/messages/websocket-open-message.js";
+import { Options } from './src/options.js';
+import WebsocketHostMessage from "./src/messages/websocket-host-message.js";
 
 /**
  * Websocket message handlers for different message types
@@ -29,27 +34,27 @@ const messageHandlers = {
 
 export { messageHandlers };
 
-function WebSocketCloseMessage(message, websocket, options) {
+function WebSocketCloseMessage(message: WebsocketCloseMessage, websocket: HostipWebSocket) {
     if (!websocket.sockets) return console.log('WebSocketCloseMessage impossible')
 
     const { socketId, code, data } = message
     console.log('me', message)
     const found = websocket.sockets.get(socketId)
     console.log('found', found?.readyState)
-    if (found.readyState === 1) found?.close(code, data)
-  }
+    if (found.readyState === WebSocket.OPEN) found?.close(code, data)
+}
 
-  function WebSocketOpenMessage(forwardedRequestMessage, websocket, options) {
+function WebSocketOpenMessage(message: WebsocketOpenMessage, websocket: HostipWebSocket, options: Options) {
     const port = options.port
-    const { socketId, url, headers } = forwardedRequestMessage
+    const { socketId, url, headers } = message
     // console.log('WebSocketOpenMessage', 'ws://127.0.0.1:' + port + url, headers)
 
     delete headers['sec-websocket-key']
-    delete headers['sec-websocket-extensions']
 
     // Create end to end tunnel
     if (!websocket.sockets) websocket.sockets = new Map()
-    const datatunnel = new HostipWebSocket('ws://127.0.0.1:' + port + url, {
+    const datatunnel = new HostipWebSocket('ws://127.0.0.1:' + port + url,
+      headers['sec-websocket-protocol'], {
       headers,
     })
     websocket.sockets.set(socketId, datatunnel)
@@ -67,12 +72,16 @@ function WebSocketCloseMessage(message, websocket, options) {
       const close = { type: 'WebSocketCloseMessage', socketId }
       websocket.sendMessage(close)
     })
-  }
+    datatunnel.on('error', (a) => {
+      // Close on error
+      const close = { type: 'WebSocketCloseMessage', socketId }
+      websocket.sendMessage(close)
+    })
+}
 
-  async function WebSocketHostMessage(
-    forwardedRequestMessage,
-    websocket,
-    options
+async function WebSocketHostMessage(
+    message: WebsocketHostMessage,
+    websocket: HostipWebSocket
   ) {
     // console.log('WebSocketHostMessage')
     if (!websocket.sockets) {
@@ -82,13 +91,19 @@ function WebSocketCloseMessage(message, websocket, options) {
 
     if (!websocket.sockets) return // console.log('bummer')
 
-    const { socketId, data } = forwardedRequestMessage
+    const { socketId, data } = message
     const datatunnel = websocket.sockets.get(socketId)
-    // console.log('datatunnel', datatunnel.readyState)
     if (!datatunnel) return // console.log('no datatunnel')
-    datatunnel.send(data)
-  }
 
-  function WebSocketClientMessage() {
+    if (datatunnel.readyState === WebSocket.CONNECTING) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+
+    if (datatunnel.readyState !== WebSocket.OPEN) return
+
+    datatunnel.send(data)
+}
+
+function WebSocketClientMessage() {
     console.log('WebSocketClientMessage impossible?')
-  }
+}

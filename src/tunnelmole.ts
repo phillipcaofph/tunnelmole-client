@@ -11,7 +11,7 @@ import validator from 'validator';
 import { initStorage } from './node-persist/storage.js';
 import { eventHandler, URL_ASSIGNED } from './events/event-handler.js';
 
-export default async function tunnelmole(options : Options): Promise<string>
+export default async function tunnelmole(options : Options)
 {
     await initStorage();
     await initialiseClientId();
@@ -110,9 +110,13 @@ export default async function tunnelmole(options : Options): Promise<string>
     })
 
     // Listen for the URL assigned event and return it
-    return new Promise((resolve) => {
+    return new Promise<{url:string,on:(type:'error'|'close',callback:()=>void)=>void,close:()=>void}>((resolve) => {
         eventHandler.on(URL_ASSIGNED, (url: string) => {
-            resolve(url);
+            resolve({
+                url,
+                on: () => {},
+                close: () => websocket.close()
+            });
         })
     });
 }

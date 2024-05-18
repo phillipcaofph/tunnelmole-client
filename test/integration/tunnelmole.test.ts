@@ -19,22 +19,22 @@ describe("Tunnelmole integration tests", () => {
         // Set domain for local testing to avoid the need to pause and set the hostname in /etc/hosts each time
         const domain = isLocal ? 'testsite.localhost' : undefined;
 
-        url = await tunnelmole({
+        ({url} = await tunnelmole({
             port,
             domain
-        });
-     
+        }));
+
         // Rewrite the URL for local testing to be plain http and include the default port
         if (isLocal) {
             url = 'http://testsite.localhost:8001'
         }
 
-         // Start the test express app listening on `localhost{$port}` 
+         // Start the test express app listening on `localhost{$port}`
         await new Promise((resolve) => {
             app.listen(port, () => {
-                resolve(true);            
-            }); 
-        }); 
+                resolve(true);
+            });
+        });
     })
 
     it("GET HTML document", async () => {
